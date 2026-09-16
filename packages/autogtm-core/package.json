@@ -13,6 +13,8 @@
     "./ai/extractEmail": "./src/ai/extractEmail.ts",
     "./campaigns/createCampaignForPersona": "./src/campaigns/createCampaignForPersona.ts",
     "./campaigns/addLeadToCampaign": "./src/campaigns/addLeadToCampaign.ts",
+    "./db/postgres": "./src/db/postgres.ts",
+    "./db/supabaseCompat": "./src/db/supabaseCompat.ts",
     "./db/autogtmDbCalls": "./src/db/autogtmDbCalls.ts",
     "./types": "./src/types/index.ts"
   },
@@ -24,9 +26,11 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.6",
-    "exa-js": "^1.4.9",
+    "@types/pg": "^8.15.6",
     "ioredis": "^5.4.1",
     "openai": "^4.77.0",
+    "pg": "^8.23.0",
+    "resend": "^4.8.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

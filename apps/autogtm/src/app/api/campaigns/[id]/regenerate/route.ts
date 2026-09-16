@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 import { z } from 'zod';
 import { regenerateEmailSequenceWithFeedback } from '@autogtm/core/ai/generateEmailCopy';
 import { resolveOutreachPromptForLead } from '@/lib/outreachPromptResolver';

@@ -24,14 +24,11 @@ import type { AutoAddRunBreakdownEntry } from '@autogtm/core/types';
 import { extractEmailFromEnrichmentData } from '@autogtm/core/ai/extractEmail';
 import { resolveOutreachPromptForLead } from '@/lib/outreachPromptResolver';
 import { Resend } from 'resend';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 
 const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const getSupabase = () => createClient();
 
 function mapInstantlyCampaignStatus(status: number): 'draft' | 'active' | 'paused' | 'completed' {
   // Instantly status codes: 0=draft, 1=active, 2=paused, 3=completed, 4=sub-sequences running.
@@ -356,7 +353,7 @@ export const dailyQueryGeneration = inngest.createFunction(
 
           // Get lead counts
           const pastQueriesWithCounts = await Promise.all(
-            (pastQueries || []).map(async (q) => {
+            (pastQueries || []).map(async (q: { query: string; criteria: string[] }) => {
               const { count } = await supabase
                 .from('leads')
                 .select('*', { count: 'exact', head: true })
@@ -469,7 +466,7 @@ export const generateQueriesOnDemand = inngest.createFunction(
         const { data: pastQueries } = await supabase.from('exa_queries').select('query, criteria').eq('company_id', company.id).order('created_at', { ascending: false }).limit(20);
         const newQuery = await generateExplorationQuery({
           company: { name: company.name, website: company.website, description: company.description, targetAudience: company.target_audience, agentNotes: company.agent_notes },
-          pastQueries: (pastQueries || []).map(q => ({ ...q, leads_found: 0 })),
+          pastQueries: (pastQueries || []).map((q: { query: string; criteria: string[] }) => ({ ...q, leads_found: 0 })),
         });
         await supabase.from('exa_queries').insert({
           company_id: company.id, query: newQuery.query, criteria: newQuery.criteria,
@@ -609,7 +606,7 @@ export const dailyWebsetSearch = inngest.createFunction(
     if (companies.length > 0) {
       await step.run('fan-out', () =>
         inngest.send(
-          companies.map((c) => ({
+          companies.map((c: { id: string; name: string }) => ({
             name: 'autogtm/daily-webset.run-company',
             data: { companyId: c.id, companyName: c.name },
           }))
@@ -830,9 +827,9 @@ export const dailyDigest = inngest.createFunction(
 
         try {
           await getResend().emails.send({
-            from: process.env.DIGEST_FROM_EMAIL || 'autogtm <noreply@example.com>',
+            from: process.env.DIGEST_FROM_EMAIL || 'leadgtm <noreply@example.com>',
             to: [company.auto_add_digest_email],
-            subject: `autogtm Digest · ${company.name} · ${today} · ${leadsFoundTotal} found · ${reachedOut.length} reached`,
+            subject: `leadgtm Digest · ${company.name} · ${today} · ${leadsFoundTotal} found · ${reachedOut.length} reached`,
             html: renderDailyDigestHtml({
               companyName: company.name,
               date: today,
@@ -899,7 +896,7 @@ function renderDailyDigestHtml(params: {
     <div style="max-width:680px;margin:0 auto;padding:32px 20px;">
       <div style="background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden;">
         <div style="padding:24px 28px;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);color:#fff;">
-          <div style="font-size:13px;opacity:.8;letter-spacing:.04em;text-transform:uppercase;">autogtm · Daily Digest · ${esc(date)}</div>
+          <div style="font-size:13px;opacity:.8;letter-spacing:.04em;text-transform:uppercase;">leadgtm · Daily Digest · ${esc(date)}</div>
           <div style="font-size:28px;font-weight:700;margin-top:6px;">${esc(companyName)}</div>
           <div style="font-size:15px;margin-top:10px;opacity:.9;">${leadsFoundTotal} found · ${reachedOut.length} reached out</div>
         </div>
@@ -941,7 +938,7 @@ function renderDailyDigestHtml(params: {
         </div>
 
         <div style="padding:16px 28px;border-top:1px solid #eee;font-size:12px;color:#999;">
-          autogtm · ${esc(companyName)} · ${esc(date)}
+          leadgtm · ${esc(companyName)} · ${esc(date)}
         </div>
       </div>
     </div>
@@ -1353,7 +1350,7 @@ export const autoAddSweepCompany = inngest.createFunction(
       const ids = Array.from(perCampaign.keys());
       if (ids.length === 0) return [];
       const { data } = await supabase.from('campaigns').select('id, name').in('id', ids);
-      const nameById = new Map((data || []).map((c: { id: string; name: string }) => [c.id, c.name]));
+      const nameById = new Map<string, string>((data || []).map((c: { id: string; name: string }) => [c.id, c.name]));
       return ids.map((id) => {
         const b = perCampaign.get(id)!;
         return {
@@ -1385,7 +1382,7 @@ export const autoAddSweepCompany = inngest.createFunction(
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3200';
           const subject = `Autopilot · ${company.name} · ${addedLeadIds.length} lead${addedLeadIds.length === 1 ? '' : 's'} added`;
           await getResend().emails.send({
-            from: process.env.DIGEST_FROM_EMAIL || 'autogtm <noreply@example.com>',
+            from: process.env.DIGEST_FROM_EMAIL || 'leadgtm <noreply@example.com>',
             to: recipients,
             subject,
             html: renderAutoAddDigestHtml({
@@ -1527,7 +1524,7 @@ function renderAutoAddDigestHtml(params: {
         </div>
 
         <div style="padding:16px 28px;border-top:1px solid #eee;font-size:12px;color:#999;">
-          autogtm Autopilot · ${esc(companyName)}
+          leadgtm Autopilot · ${esc(companyName)}
         </div>
       </div>
     </div>

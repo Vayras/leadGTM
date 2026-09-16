@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 
 // Start of "today" in Eastern Time (the weekly outbound workflow runs on Thursdays ET),
 // returned as a UTC ISO string so it can be compared against campaign_routed_at.

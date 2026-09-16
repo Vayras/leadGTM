@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 
 /**
  * Returns the most recent Autopilot sweep runs for a company, used to power

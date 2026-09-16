@@ -37,7 +37,7 @@ export interface GenerateQueriesParams {
 export async function generateExaQueries(params: GenerateQueriesParams): Promise<GeneratedQuery[]> {
   const openai = getOpenAIClient();
 
-  const systemPrompt = `You are an expert at generating search queries for finding potential customers and influencers using the Exa Websets API.
+  const systemPrompt = `You are an expert at generating Google search queries for finding potential customers and influencers via Bright Data SERP.
 
 Your task is to generate search queries that will help find people who would be great targets for cold outreach based on a company's profile.
 
@@ -46,7 +46,7 @@ The queries should be specific enough to find relevant people but broad enough t
 - Personal websites and portfolios
 - Blog posts and articles
 
-For each query, also provide 2-3 criteria that Exa should use to verify results match what we're looking for.
+For each query, also provide 2-3 criteria that describe who the results should match.
 
 Return your response as JSON with this structure:
 {
@@ -103,7 +103,7 @@ export async function refineQuery(params: {
 }): Promise<GeneratedQuery> {
   const openai = getOpenAIClient();
 
-  const systemPrompt = `You are an expert at refining search queries for the Exa Websets API.
+  const systemPrompt = `You are an expert at refining Google search queries for Bright Data SERP.
 Given the original query, criteria, and feedback, generate an improved version.
 
 Return your response as JSON:

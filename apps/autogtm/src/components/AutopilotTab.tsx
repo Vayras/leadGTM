@@ -216,7 +216,7 @@ export function AutopilotTab({ company, onCompanyUpdated }: AutopilotTabProps) {
 							<SavedPing active={!!savedFields.enabled} />
 						</div>
 						<p className="mt-2 text-sm text-gray-600 leading-relaxed">
-							autogtm will auto-add the top <strong className="text-gray-900">{dailyLimit}</strong> Ready-to-Add leads scoring <strong className="text-gray-900">{minFitScore}+</strong> every day at <strong className="text-gray-900">{HOUR_LABEL_ET(runHourUtc)}</strong>, then send a digest email summarizing what went out.
+							leadgtm will auto-add the top <strong className="text-gray-900">{dailyLimit}</strong> Ready-to-Add leads scoring <strong className="text-gray-900">{minFitScore}+</strong> every day at <strong className="text-gray-900">{HOUR_LABEL_ET(runHourUtc)}</strong>, then send a digest email summarizing what went out.
 						</p>
 					</div>
 				</div>

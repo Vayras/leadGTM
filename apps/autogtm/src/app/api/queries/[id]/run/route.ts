@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 import { startQueryRun } from '../../_lib/startQueryRun';
 
 export async function POST(
@@ -21,12 +21,20 @@ export async function POST(
       websetId: result.websetId,
       status: result.status,
       message: result.message,
+      resultsCount: result.resultsCount,
+      leadsCreated: result.leadsCreated,
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Query not found') {
       return NextResponse.json({ error: 'Query not found' }, { status: 404 });
     }
     console.error('Error running query:', error);
+    if (error instanceof Error && error.message.includes('Bright Data API error')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to run query' },
       { status: 500 }

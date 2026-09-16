@@ -3,7 +3,8 @@
  * Uses Supabase as the data store
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '../db/supabaseCompat';
+type SupabaseClient = ReturnType<typeof createClient>;
 import type {
   Company,
   ExaQuery,
@@ -23,14 +24,7 @@ let _supabaseClient: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (!_supabaseClient) {
-    const url = process.env.AUTOGTM_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.AUTOGTM_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!url || !key) {
-      throw new Error('Supabase credentials are required');
-    }
-    
-    _supabaseClient = createClient(url, key);
+    _supabaseClient = createClient();
   }
   return _supabaseClient;
 }

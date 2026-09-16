@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 import { determineCampaignForLead } from '@autogtm/core/ai/determineCampaign';
 import { setSuggestedCampaign, markLeadSkipped, getCampaignBySourceLeadId } from '@autogtm/core/db/autogtmDbCalls';
 import { createDraftCampaignForLead } from '@autogtm/core/campaigns/createCampaignForPersona';

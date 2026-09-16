@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 
 export async function GET(
   request: NextRequest,
@@ -84,7 +84,7 @@ export async function POST(
     const { data: restoredEmails, error: restoreError } = await supabase
       .from('campaign_emails')
       .insert(
-        versionEmails.map((email) => ({
+        versionEmails.map((email: { step: number; subject: string; body: string; delay_days: number }) => ({
           campaign_id: id,
           step: email.step,
           subject: email.subject,

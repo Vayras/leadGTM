@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 import { activateCampaign } from '@autogtm/core/clients/instantly';
 import { sendDraftCampaignForLead } from '@autogtm/core/campaigns/createCampaignForPersona';
 

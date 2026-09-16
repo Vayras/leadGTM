@@ -143,7 +143,7 @@ export function CompanyEdit({ companyId }: CompanyEditProps) {
         throw new Error('Failed to delete');
       }
 
-      localStorage.removeItem('autogtm_selected_company');
+      localStorage.removeItem('leadgtm_selected_company');
       
       toast({
         title: 'Deleted',

@@ -1,5 +1,5 @@
 import {
-  createCampaign as createInstantlyCampaign,
+  createCampaign as createResendCampaign,
   activateCampaign,
   addLeadsToCampaign,
 } from '../clients/instantly';
@@ -16,7 +16,7 @@ import {
 } from '../db/autogtmDbCalls';
 import type { Company, Campaign } from '../types';
 
-/** Convert plain text email body to HTML for Instantly */
+/** Convert plain text email body to HTML for Resend. */
 function textToHtml(text: string): string {
   return text
     .split('\n\n')
@@ -143,10 +143,10 @@ export async function sendDraftCampaignForLead(params: {
     delay: index === 0 ? 0 : email.delay_days,
   }));
 
-  const resolvedEmailList = fallbackCompanySendingEmails.length ? fallbackCompanySendingEmails : [process.env.INSTANTLY_SENDER_EMAIL || ''];
-  console.log('[sendDraft] emailList being sent to Instantly:', JSON.stringify(resolvedEmailList));
+  const resolvedEmailList = fallbackCompanySendingEmails.length ? fallbackCompanySendingEmails : [process.env.RESEND_FROM_EMAIL || ''];
+  console.log('[sendDraft] sender list being sent through Resend:', JSON.stringify(resolvedEmailList));
 
-  const instantlyCampaign = await createInstantlyCampaign({
+  const instantlyCampaign = await createResendCampaign({
     name: campaign.name,
     emailList: resolvedEmailList,
     sequences,

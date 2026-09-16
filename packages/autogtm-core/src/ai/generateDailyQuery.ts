@@ -23,6 +23,38 @@ function getOpenAIClient(): OpenAI {
   return new OpenAI({ apiKey });
 }
 
+export const SEARCH_PLATFORMS = {
+  linkedin: { site: 'linkedin.com', label: 'LinkedIn' },
+  instagram: { site: 'instagram.com', label: 'Instagram' },
+  tiktok: { site: 'tiktok.com', label: 'TikTok' },
+  youtube: { site: 'youtube.com', label: 'YouTube' },
+  twitter: { site: 'twitter.com', label: 'X / Twitter' },
+} as const;
+
+export type SearchPlatform = keyof typeof SEARCH_PLATFORMS;
+
+function platformSpec(platform?: string) {
+  if (!platform || !(platform in SEARCH_PLATFORMS)) return null;
+  return SEARCH_PLATFORMS[platform as SearchPlatform];
+}
+
+function platformPrompt(platform?: string): string {
+  const spec = platformSpec(platform);
+  if (!spec) return '';
+  return `\n\nPLATFORM LOCK: Only search ${spec.label}. The query MUST include site:${spec.site} and must not mention any other platform.`;
+}
+
+function pinPlatform(result: GeneratedQuery, platform?: string): GeneratedQuery {
+  const spec = platformSpec(platform);
+  if (!spec) return result;
+  const needle = `site:${spec.site}`;
+  return {
+    ...result,
+    query: result.query.toLowerCase().includes(needle) ? result.query : `${needle} ${result.query}`,
+    criteria: result.criteria.includes(spec.label) ? result.criteria : [spec.label, ...result.criteria],
+  };
+}
+
 export interface GenerateFocusedQueryParams {
   company: {
     name: string;
@@ -31,6 +63,7 @@ export interface GenerateFocusedQueryParams {
     targetAudience: string;
   };
   instruction: string;
+  platform?: string;
 }
 
 export interface GenerateExplorationQueryParams {
@@ -42,6 +75,7 @@ export interface GenerateExplorationQueryParams {
     agentNotes?: string | null;
   };
   pastQueries: Array<{ query: string; criteria: string[]; leads_found?: number }>;
+  platform?: string;
 }
 
 /**
@@ -51,7 +85,7 @@ export interface GenerateExplorationQueryParams {
 export async function generateFocusedQuery(params: GenerateFocusedQueryParams): Promise<GeneratedQuery> {
   const openai = getOpenAIClient();
 
-  const systemPrompt = `You are an AI agent that generates search queries for finding potential leads using the Exa Websets API.
+  const systemPrompt = `You are an AI agent that generates Google search queries for finding potential leads via Bright Data SERP.
 
 You have access to web search. USE IT to:
 1. Research the company's website to understand their product/service
@@ -87,7 +121,7 @@ First, research the company website and the target segment. Then generate ONE qu
   const response = await openai.responses.create({
     model: 'gpt-4.1-mini',
     tools: [{ type: 'web_search_preview' }],
-    input: `${systemPrompt}\n\n${userPrompt}`,
+    input: `${systemPrompt}${platformPrompt(params.platform)}\n\n${userPrompt}`,
   });
 
   const responseText = response.output_text || '';
@@ -99,11 +133,11 @@ First, research the company website and the target segment. Then generate ONE qu
   }
 
   const parsed = SingleQuerySchema.parse(JSON.parse(jsonMatch[0]));
-  return {
+  return pinPlatform({
     query: parsed.query,
     criteria: parsed.criteria,
     rationale: parsed.rationale,
-  };
+  }, params.platform);
 }
 
 /**
@@ -119,7 +153,7 @@ export async function generateExplorationQuery(params: GenerateExplorationQueryP
       ).join('\n')
     : 'No past queries yet - this is the first one!';
 
-  const systemPrompt = `You are an AI agent that generates ONE search query per day for finding potential leads using the Exa Websets API.
+  const systemPrompt = `You are an AI agent that generates ONE Google search query per day for finding potential leads via Bright Data SERP.
 
 You have access to web search. USE IT to:
 1. Research the company's website and understand their product
@@ -163,7 +197,7 @@ Research the company and the space, then generate ONE query that explores a COMP
   const response = await openai.responses.create({
     model: 'gpt-4.1-mini',
     tools: [{ type: 'web_search_preview' }],
-    input: `${systemPrompt}\n\n${userPrompt}`,
+    input: `${systemPrompt}${platformPrompt(params.platform)}\n\n${userPrompt}`,
   });
 
   const responseText = response.output_text || '';
@@ -175,11 +209,11 @@ Research the company and the space, then generate ONE query that explores a COMP
   }
 
   const parsed = SingleQuerySchema.parse(JSON.parse(jsonMatch[0]));
-  return {
+  return pinPlatform({
     query: parsed.query,
     criteria: parsed.criteria,
     rationale: parsed.rationale,
-  };
+  }, params.platform);
 }
 
 // Keep old function for backwards compatibility but deprecated

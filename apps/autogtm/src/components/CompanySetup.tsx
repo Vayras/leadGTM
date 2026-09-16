@@ -125,7 +125,7 @@ export function CompanySetup() {
       
       // Set the newly created company as selected
       if (data.company?.id) {
-        localStorage.setItem('autogtm_selected_company', data.company.id);
+        localStorage.setItem('leadgtm_selected_company', data.company.id);
       }
 
       toast({

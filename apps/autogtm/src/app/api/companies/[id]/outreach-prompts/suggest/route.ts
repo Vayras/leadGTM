@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@autogtm/core/db/supabaseCompat';
 import OpenAI from 'openai';
 import { DEFAULT_EMAIL_PROMPT } from '@autogtm/core/ai/generateEmailCopy';
 

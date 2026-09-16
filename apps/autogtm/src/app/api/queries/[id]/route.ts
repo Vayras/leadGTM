@@ -8,8 +8,18 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
+    const updates: { query?: string; criteria?: string[]; is_active?: boolean; status?: 'pending' | 'failed' } = {};
+    if (typeof body.query === 'string' && body.query.trim()) updates.query = body.query.trim();
+    if (Array.isArray(body.criteria) && body.criteria.every((c: unknown) => typeof c === 'string')) {
+      updates.criteria = body.criteria;
+    }
+    if (typeof body.is_active === 'boolean') updates.is_active = body.is_active;
+    if (body.status === 'pending' || body.status === 'failed') updates.status = body.status;
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No valid fields' }, { status: 400 });
+    }
 
-    const updated = await updateExaQuery(id, body);
+    const updated = await updateExaQuery(id, updates);
     return NextResponse.json({ query: updated });
   } catch (error) {
     console.error('Error updating query:', error);

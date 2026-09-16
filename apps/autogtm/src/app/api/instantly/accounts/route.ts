@@ -6,9 +6,9 @@ export async function GET() {
     const result = await listAccounts();
     return NextResponse.json({ accounts: result.items || [] });
   } catch (error) {
-    console.error('Error fetching Instantly accounts:', error);
+    console.error('Error fetching Resend sender accounts:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch Instantly accounts' },
+      { error: 'Failed to fetch Resend sender accounts' },
       { status: 500 }
     );
   }

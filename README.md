@@ -1,10 +1,10 @@
 
 
-# autogtm
+# leadgtm
 
-**autogtm is an open-source AI GTM engine that runs cold outbound on autopilot.**
+**leadgtm is an open-source AI GTM engine that runs cold outbound on autopilot.**
 
-Describe your target audience in plain English with optional targeted briefs, and autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
+Describe your target audience in plain English with optional targeted briefs, and leadgtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Resend. System on, autopilot on, you sleep.
 
 ---
 
@@ -15,11 +15,11 @@ Describe your target audience in plain English with optional targeted briefs, an
   - `Queue`: picked up by scheduled generation/run.
   - `Run now`: generates and starts search immediately.
 3. **AI generates search queries** from your context + briefs.
-4. **Exa runs search and extracts leads** with enrichment hints.
+4. **Bright Data runs search and extracts leads** with enrichment hints.
 5. **AI enriches leads** (bio, fit score, contact context).
 6. **AI creates a draft campaign per lead** for review.
 7. **Approve and send** — either you manually review and click "Create and Start Campaign", or **Autopilot** sweeps the backlog daily at 10am ET and sends the top N qualifying leads on its own.
-8. **Instantly status + analytics sync hourly**; daily digest summarizes what went out.
+8. **Resend send status is tracked locally**; daily digest summarizes what went out.
 
 ### Controls
 
@@ -38,7 +38,7 @@ Describe your target audience in plain English with optional targeted briefs, an
 | 8:30 AM     | Generate queued search queries from briefs and company context                        |
 | 9:00 AM     | Run searches, discover and enrich leads                                               |
 | 10:00 AM ET | **Autopilot sweep** — auto-add top N Ready-to-Add leads + digest email (when enabled) |
-| Hourly      | Sync campaign status and analytics from Instantly                                     |
+| Hourly      | Sync campaign status and analytics from local send events                             |
 | 2:00 PM ET  | Send daily discovery digest email                                                     |
 
 
@@ -46,10 +46,10 @@ Describe your target audience in plain English with optional targeted briefs, an
 
 ## Features
 
-- **AI lead discovery:** Exa.ai websets find people matching your natural-language description.
+- **AI lead discovery:** Bright Data SERP results find people matching your natural-language description.
 - **AI enrichment:** Bio, social links, audience size, expertise tags, and a 1-10 fit score with reasoning.
 - **AI email copywriting:** Personalized multi-step sequences generated per lead draft.
-- **Campaign management:** Draft-first campaigns with controlled start in Instantly.ai.
+- **Campaign management:** Draft-first campaigns with controlled sending through Resend.
 - **System + Autopilot toggles:** Company-level master switch plus a daily Autopilot sweep that auto-adds the top N qualifying leads each morning (configurable daily limit, minimum fit score, and digest email).
 - **Fresh-copy Autopilot:** Optional "regenerate draft before adding" — rewrites each draft's sequence against the lead's bio/expertise right before sending so stale templated copy never goes out.
 - **Exploration mode:** When no new briefs exist, AI generates creative queries to keep pipeline coverage fresh.
@@ -63,10 +63,11 @@ Describe your target audience in plain English with optional targeted briefs, an
 | --------------- | ----------------------------------------------------------------------------------- |
 | Framework       | [Next.js 15](https://nextjs.org) (App Router)                                       |
 | Frontend        | React 19, [Tailwind CSS](https://tailwindcss.com), [Radix UI](https://radix-ui.com) |
-| Database + Auth | [Supabase](https://supabase.com) (PostgreSQL + Auth)                                |
+| Database        | PostgreSQL via `DATABASE_URL`                                                       |
+| Auth            | Local email/password auth backed by PostgreSQL                                      |
 | Background Jobs | [Inngest](https://inngest.com)                                                      |
-| Lead Discovery  | [Exa.ai](https://exa.ai) (Websets API)                                              |
-| Email Sending   | [Instantly.ai](https://instantly.ai)                                                |
+| Lead Discovery  | [Bright Data](https://brightdata.com) SERP API                                      |
+| Email Sending   | [Resend](https://resend.com)                                                        |
 | AI              | [OpenAI](https://openai.com) (GPT-4.1 / GPT-5-mini)                                 |
 | Digest Emails   | [Resend](https://resend.com)                                                        |
 
@@ -79,12 +80,11 @@ Describe your target audience in plain English with optional targeted briefs, an
 
 Accounts needed:
 
-- [Supabase](https://supabase.com) — database and authentication
-- [Exa.ai](https://exa.ai) — lead discovery via Websets API
-- [Instantly.ai](https://instantly.ai) — email campaign sending
+- PostgreSQL on your VPS — database
+- [Bright Data](https://brightdata.com) — lead discovery via SERP API
+- [Resend](https://resend.com) — email sending and daily digest emails
 - [OpenAI](https://platform.openai.com) — AI enrichment and generation
 - [Inngest](https://inngest.com) — background job scheduling
-- [Resend](https://resend.com) — daily digest emails (optional)
 
 Locally: Node.js 18+ and npm.
 
@@ -92,8 +92,8 @@ Locally: Node.js 18+ and npm.
 
 ```bash
 # Clone and install
-git clone https://github.com/your-org/autogtm.git
-cd autogtm
+git clone https://github.com/your-org/leadgtm.git
+cd leadgtm
 npm install
 
 # Configure environment
@@ -112,23 +112,42 @@ For background jobs, run the Inngest dev server in a separate terminal:
 npx inngest-cli@latest dev
 ```
 
-**Supabase Setup**
+### Environment
 
-Create a new Supabase project at [supabase.com](https://supabase.com), then:
+Set these values in `apps/autogtm/.env.local`:
 
-1. Open your project dashboard
-2. Go to **SQL Editor**
-3. Paste the contents of `[schema.sql](./schema.sql)` and run it
+```bash
+DATABASE_URL=postgres://user:password@your-vps-host:5432/leadgtm
+POSTGRES_SSL=false
+
+BRIGHT_DATA_API_KEY=your_bright_data_api_key
+BRIGHT_DATA_SERP_ZONE=serp_api1
+BRIGHT_DATA_COUNTRY=us
+
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL="Your Name <you@yourdomain.com>"
+RESEND_DAILY_LIMIT=50
+
+OPENAI_API_KEY=your_openai_api_key
+```
+
+### PostgreSQL Setup
+
+Create a database on your VPS, then run:
+
+```bash
+psql "$DATABASE_URL" -f schema.sql
+```
 
 This creates all required tables, indexes, RLS policies, and helper functions.
 
-If you already have a Supabase project from an earlier version, apply incremental migrations from `[migrations/](./migrations/)` instead — they're safe to re-run (`IF NOT EXISTS` guarded).
+If you already have a database from an earlier version, apply incremental migrations from `[migrations/](./migrations/)` instead — they're safe to re-run (`IF NOT EXISTS` guarded).
 
 
 
 ## Deployment
 
-autogtm is a standard Next.js app. Deploy to any platform that supports it:
+leadgtm is a standard Next.js app. Deploy to any platform that supports it:
 
 - **Vercel** — recommended, zero-config Next.js deployment
 
@@ -136,7 +155,7 @@ Make sure to:
 
 1. Set all environment variables in your hosting platform
 2. Connect your Inngest app to receive webhooks at `/api/inngest`
-3. Ensure your Supabase project is on a paid plan if you need higher limits
+3. Ensure your VPS firewall allows the deployment host to reach PostgreSQL
 
 ## License
 

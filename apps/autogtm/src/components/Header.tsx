@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { LogOut, Plus, Building2 } from 'lucide-react';
 
@@ -19,7 +18,6 @@ interface HeaderProps {
 
 export function Header({ userEmail }: HeaderProps) {
   const router = useRouter();
-  const supabase = createClient();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,13 +28,13 @@ export function Header({ userEmail }: HeaderProps) {
 
   useEffect(() => {
     // Load selected company from localStorage
-    const stored = localStorage.getItem('autogtm_selected_company');
+    const stored = localStorage.getItem('leadgtm_selected_company');
     if (stored && companies.find(c => c.id === stored)) {
       setSelectedCompanyId(stored);
     } else if (companies.length > 0) {
       setSelectedCompanyId(companies[0].id);
-      localStorage.setItem('autogtm_selected_company', companies[0].id);
-      window.dispatchEvent(new Event('autogtm_company_changed'));
+      localStorage.setItem('leadgtm_selected_company', companies[0].id);
+      window.dispatchEvent(new Event('leadgtm_company_changed'));
     }
   }, [companies]);
 
@@ -57,14 +55,15 @@ export function Header({ userEmail }: HeaderProps) {
   const handleCompanyChange = (companyId: string) => {
     if (companyId === selectedCompanyId) return;
     setSelectedCompanyId(companyId);
-    localStorage.setItem('autogtm_selected_company', companyId);
-    window.dispatchEvent(new Event('autogtm_company_changed'));
+    localStorage.setItem('leadgtm_selected_company', companyId);
+    window.dispatchEvent(new Event('leadgtm_company_changed'));
     router.refresh();
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
+    router.refresh();
   };
 
   return (
@@ -72,7 +71,7 @@ export function Header({ userEmail }: HeaderProps) {
       <div className="max-w-5xl mx-auto flex h-14 items-center justify-between px-6">
         <div className="flex items-center gap-6">
           <Link href="/app" className="flex items-center gap-0">
-            <span className="font-black text-xl tracking-tight text-gray-900">auto</span>
+            <span className="font-black text-xl tracking-tight text-gray-900">lead</span>
             <span className="font-black text-xl tracking-tight text-white bg-indigo-600 px-1.5 py-0.5 rounded-md ml-0.5">gtm</span>
           </Link>
           
@@ -143,16 +142,16 @@ export function useSelectedCompany(): string | null {
   const [companyId, setCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
-    setCompanyId(localStorage.getItem('autogtm_selected_company'));
+    setCompanyId(localStorage.getItem('leadgtm_selected_company'));
     
     const handleChange = () => {
-      setCompanyId(localStorage.getItem('autogtm_selected_company'));
+      setCompanyId(localStorage.getItem('leadgtm_selected_company'));
     };
     window.addEventListener('storage', handleChange);
-    window.addEventListener('autogtm_company_changed', handleChange);
+    window.addEventListener('leadgtm_company_changed', handleChange);
     return () => {
       window.removeEventListener('storage', handleChange);
-      window.removeEventListener('autogtm_company_changed', handleChange);
+      window.removeEventListener('leadgtm_company_changed', handleChange);
     };
   }, []);
 

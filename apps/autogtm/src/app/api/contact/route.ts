@@ -15,9 +15,9 @@ export async function POST(request: NextRequest) {
       const resend = new Resend(resendKey);
 
       await resend.emails.send({
-        from: process.env.DIGEST_FROM_EMAIL || 'autogtm <onboarding@resend.dev>',
+        from: process.env.DIGEST_FROM_EMAIL || 'leadgtm <onboarding@resend.dev>',
         to,
-        subject: `[autogtm] Invite request from ${name}`,
+        subject: `[leadgtm] Invite request from ${name}`,
         text: `Name: ${name}\nEmail: ${email}${message ? `\n\nMessage:\n${message}` : ''}`,
         replyTo: email,
       });

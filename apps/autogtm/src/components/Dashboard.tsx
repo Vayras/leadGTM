@@ -31,6 +31,8 @@ import {
   RotateCcw,
   Save,
   ArrowDownWideNarrow,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { AutopilotTab } from '@/components/AutopilotTab';
 
@@ -166,6 +168,9 @@ export function Dashboard({ userEmail }: DashboardProps) {
   const [stats, setStats] = useState<Stats>({ queries: 0, leads: 0, campaigns: 0, outboundsToday: 0 });
   const [loading, setLoading] = useState(true);
   const [runningQueries, setRunningQueries] = useState<Record<string, { progress: number; found: number }>>({});
+  const runAbortRef = useRef<Record<string, AbortController>>({});
+  const [editingQueryId, setEditingQueryId] = useState<string | null>(null);
+  const [editingQueryText, setEditingQueryText] = useState('');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedQueryFilter, setSelectedQueryFilter] = useState<string>('all');
   const [enrichingLeads, setEnrichingLeads] = useState<Set<string>>(new Set());
@@ -212,6 +217,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
   const [promptDraft, setPromptDraft] = useState('');
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [generatingQueries, setGeneratingQueries] = useState(false);
+  const [searchPlatform, setSearchPlatform] = useState('');
   const [runningInstructionNow, setRunningInstructionNow] = useState(false);
 
   useEffect(() => {
@@ -357,18 +363,48 @@ export function Dashboard({ userEmail }: DashboardProps) {
     }
   };
 
+  const patchQuery = async (id: string, updates: Partial<Query>) => {
+    const response = await fetch(`/api/queries/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) throw new Error('Failed to update query');
+    const data = await response.json();
+    setQueries((qs) => qs.map((q) => (q.id === id ? { ...q, ...data.query } : q)));
+    return data.query as Query;
+  };
+
   const runQuery = async (queryId: string) => {
-    // Start the query
+    runAbortRef.current[queryId]?.abort();
+    const ac = new AbortController();
+    runAbortRef.current[queryId] = ac;
     setRunningQueries(prev => ({ ...prev, [queryId]: { progress: 0, found: 0 } }));
-    setQueries(queries.map(q => q.id === queryId ? { ...q, status: 'running' } : q));
+    setQueries(qs => qs.map(q => q.id === queryId ? { ...q, status: 'running', is_active: true } : q));
 
     try {
       const response = await fetch(`/api/queries/${queryId}/run`, {
         method: 'POST',
+        signal: ac.signal,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start query');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to run query');
+      }
+
+      const runResult = await response.json();
+      if (runResult.status === 'completed') {
+        setRunningQueries(prev => {
+          const { [queryId]: _, ...rest } = prev;
+          return rest;
+        });
+        toast({
+          title: 'Search complete',
+          description: `Found ${runResult.resultsCount || 0} items, created ${runResult.leadsCreated || 0} new leads.`,
+        });
+        fetchData();
+        return;
       }
 
       // Poll for progress
@@ -376,6 +412,8 @@ export function Dashboard({ userEmail }: DashboardProps) {
         try {
           const statusRes = await fetch(`/api/queries/${queryId}/status`);
           const status = await statusRes.json();
+
+          if (ac.signal.aborted) return;
 
           if (status.status === 'completed') {
             // Done! Update UI
@@ -427,6 +465,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
       // Start polling after a short delay
       setTimeout(pollStatus, 1000);
     } catch (error) {
+      if (ac.signal.aborted) return;
       setRunningQueries(prev => {
         const { [queryId]: _, ...rest } = prev;
         return rest;
@@ -434,8 +473,46 @@ export function Dashboard({ userEmail }: DashboardProps) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to run query. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to run query. Please try again.',
       });
+    }
+  };
+
+  const pauseQuery = async (id: string) => {
+    runAbortRef.current[id]?.abort();
+    delete runAbortRef.current[id];
+    setRunningQueries(prev => {
+      const { [id]: _, ...rest } = prev;
+      return rest;
+    });
+    try {
+      await patchQuery(id, { is_active: false, status: 'pending' });
+      toast({ title: 'Search paused' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to pause search' });
+    }
+  };
+
+  const resumeQuery = async (id: string) => {
+    try {
+      await patchQuery(id, { is_active: true });
+      toast({ title: 'Search resumed' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to resume search' });
+    }
+  };
+
+  const saveQueryText = async (id: string) => {
+    const text = editingQueryText.trim();
+    setEditingQueryId(null);
+    if (!text) return;
+    const current = queries.find((q) => q.id === id);
+    if (current?.query === text) return;
+    try {
+      await patchQuery(id, { query: text });
+      toast({ title: 'Query updated' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update query' });
     }
   };
 
@@ -443,10 +520,9 @@ export function Dashboard({ userEmail }: DashboardProps) {
     if (!confirm('Delete this query?')) return;
     try {
       const response = await fetch(`/api/queries/${id}`, { method: 'DELETE' });
-      if (response.ok) {
-        setQueries(queries.filter((q) => q.id !== id));
-        toast({ title: 'Query deleted' });
-      }
+      if (!response.ok) throw new Error('Failed to delete query');
+      setQueries(queries.filter((q) => q.id !== id));
+      toast({ title: 'Query deleted' });
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete query' });
     }
@@ -955,7 +1031,8 @@ export function Dashboard({ userEmail }: DashboardProps) {
     return count.toString();
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string, isActive = true) => {
+    if (!isActive) return <Pause className="h-4 w-4 text-yellow-500" />;
     switch (status) {
       case 'running':
         return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
@@ -1339,8 +1416,22 @@ export function Dashboard({ userEmail }: DashboardProps) {
                 {/* Queries Tab */}
                 {activeTab === 'searches' && (
                   <div>
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-4 gap-3">
                       <p className="text-sm text-gray-500">AI-generated searches based on your instructions, runs automatically daily at 9AM to discover new leads</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        value={searchPlatform}
+                        onChange={(e) => setSearchPlatform(e.target.value)}
+                        className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700"
+                        title="Stick generated searches to a platform"
+                      >
+                        <option value="">Any platform</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="twitter">X / Twitter</option>
+                      </select>
                       <Button
                         size="sm"
                         disabled={generatingQueries}
@@ -1351,7 +1442,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
                             const res = await fetch('/api/queries/generate', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ companyId }),
+                              body: JSON.stringify({ companyId, platform: searchPlatform || undefined }),
                             });
                             if (res.ok) {
                               toast({ title: 'Generating search', description: 'New search will appear shortly' });
@@ -1372,6 +1463,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
                           <><Sparkles className="h-3 w-3 mr-1.5" /> Generate Search</>
                         )}
                       </Button>
+                      </div>
                     </div>
                     {queries.length === 0 ? (
                       <div className="py-12 text-center">
@@ -1393,10 +1485,37 @@ export function Dashboard({ userEmail }: DashboardProps) {
                             {queries.map((query) => (
                               <tr key={query.id} className="border-b hover:bg-gray-50">
                                 <td className="py-3 px-4">
-                                  {getStatusIcon(query.status)}
+                                  {getStatusIcon(query.status, query.is_active)}
                                 </td>
                                 <td className="py-3 px-4">
-                                  <p className="font-medium text-gray-900">{query.query}</p>
+                                  {editingQueryId === query.id ? (
+                                    <textarea
+                                      autoFocus
+                                      value={editingQueryText}
+                                      onChange={(e) => setEditingQueryText(e.target.value)}
+                                      onBlur={() => saveQueryText(query.id)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                          e.preventDefault();
+                                          (e.target as HTMLTextAreaElement).blur();
+                                        }
+                                        if (e.key === 'Escape') setEditingQueryId(null);
+                                      }}
+                                      rows={2}
+                                      className="w-full text-sm font-medium border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                                    />
+                                  ) : (
+                                    <p
+                                      className="font-medium text-gray-900 cursor-text hover:bg-gray-100 rounded px-1 -mx-1"
+                                      title="Click to edit"
+                                      onClick={() => {
+                                        setEditingQueryId(query.id);
+                                        setEditingQueryText(query.query);
+                                      }}
+                                    >
+                                      {query.query}
+                                    </p>
+                                  )}
                                   <div className="flex flex-wrap items-center gap-1 mt-1">
                                     {query.company_updates?.content ? (
                                       <span className="text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
@@ -1419,36 +1538,45 @@ export function Dashboard({ userEmail }: DashboardProps) {
                                 </td>
                                 <td className="py-3 px-4">
                                   <div className="flex justify-end items-center gap-2">
-                                    {runningQueries[query.id] ? (
-                                      <div className="flex items-center gap-2 text-sm text-gray-600 min-w-[100px]">
+                                    {runningQueries[query.id] && (
+                                      <div className="flex items-center gap-2 text-sm text-gray-600">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         <span>
-                                          {runningQueries[query.id].found > 0 
+                                          {runningQueries[query.id].found > 0
                                             ? `Found ${runningQueries[query.id].found}...`
                                             : 'Searching...'}
                                         </span>
                                       </div>
-                                    ) : !query.webset_runs?.[0]?.webset_id ? (
+                                    )}
+                                    {runningQueries[query.id] || query.status === 'running' ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => pauseQuery(query.id)}
+                                        title="Pause"
+                                      >
+                                        <Pause className="h-4 w-4 mr-1" />
+                                        Pause
+                                      </Button>
+                                    ) : !query.is_active ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => resumeQuery(query.id)}
+                                        title="Resume daily runs"
+                                      >
+                                        <Play className="h-4 w-4 mr-1" />
+                                        Resume
+                                      </Button>
+                                    ) : null}
+                                    {!runningQueries[query.id] && (
                                       <Button
                                         size="sm"
                                         onClick={() => runQuery(query.id)}
-                                        disabled={query.status === 'running'}
                                       >
                                         <RefreshCw className="h-4 w-4 mr-1" />
-                                        Run
+                                        {query.last_run_at ? 'Re-run' : 'Run'}
                                       </Button>
-                                    ) : null}
-                                    {query.webset_runs?.[0]?.webset_id && (
-                                      <a
-                                        href={`https://websets.exa.ai/websets/${query.webset_runs[0].webset_id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <Button size="sm" variant="outline">
-                                          <ExternalLink className="h-4 w-4 mr-1" />
-                                          Exa
-                                        </Button>
-                                      </a>
                                     )}
                                     <Button
                                       size="sm"
@@ -2515,7 +2643,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setGuideOpen(false)}>
           <div className="bg-white rounded-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b">
-              <h3 className="font-semibold text-lg text-gray-900">How autogtm works</h3>
+              <h3 className="font-semibold text-lg text-gray-900">How leadgtm works</h3>
               <button onClick={() => setGuideOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="h-5 w-5" />
               </button>
